@@ -43,7 +43,11 @@ import (
 // AdminDBClean is the command to clean up unhealthy executions.
 // Input is a JSON stream provided via STDIN or a file.
 func AdminDBClean(c *cli.Context) error {
-	scanType, err := executions.ScanTypeString(getRequiredOption(c, FlagScanType))
+	scanTypeFlag, err := getRequiredOption(c, FlagScanType)
+	if err != nil {
+		return PrintableError("Scan type flag not found ", err)
+	}
+	scanType, err := executions.ScanTypeString(scanTypeFlag)
 
 	if err != nil {
 		return PrintableError("unknown scan type", err)
@@ -79,7 +83,10 @@ func AdminDBClean(c *cli.Context) error {
 		)
 	}
 
-	input := getInputFile(c.String(FlagInputFile))
+	input, err := getInputFile(c.String(FlagInputFile))
+	if err != nil {
+		return PrintableError("Input file flag not found ", err)
+	}
 
 	dec := json.NewDecoder(input)
 	if err != nil {
@@ -102,10 +109,11 @@ func AdminDBClean(c *cli.Context) error {
 	}
 
 	for _, e := range data {
+		result, err := fixExecution(c, invariants, e)
 		out := store.FixOutputEntity{
 			Execution: e.Execution,
 			Input:     *e,
-			Result:    fixExecution(c, invariants, e),
+			Result:    result,
 		}
 		data, err := json.Marshal(out)
 		if err != nil {
@@ -122,11 +130,11 @@ func fixExecution(
 	c *cli.Context,
 	invariants []executions.InvariantFactory,
 	execution *store.ScanOutputEntity,
-) invariant.ManagerFixResult {
-	execManager := initializeExecutionStore(c, execution.Execution.(entity.Entity).GetShardID())
+) (invariant.ManagerFixResult, error) {
+	execManager, err := initializeExecutionStore(c, execution.Execution.(entity.Entity).GetShardID())
 	defer execManager.Close()
 
-	historyV2Mgr := initializeHistoryManager(c)
+	historyV2Mgr, err := initializeHistoryManager(c)
 	defer historyV2Mgr.Close()
 
 	pr := persistence.NewPersistenceRetryer(
@@ -141,8 +149,11 @@ func fixExecution(
 		ivs = append(ivs, fn(pr, cache.NewNoOpDomainCache()))
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return invariant.ManagerFixResult{}, PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
-	return invariant.NewInvariantManager(ivs).RunFixes(ctx, execution.Execution)
+	return invariant.NewInvariantManager(ivs).RunFixes(ctx, execution.Execution), nil
 }

@@ -34,9 +34,14 @@ import (
 func AdminGetAsyncWFConfig(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	domainName := getRequiredOption(c, FlagDomain)
-
-	ctx, cancel := newContext(c)
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Domain Flag not found: ", err)
+	}
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	req := &types.GetDomainAsyncWorkflowConfiguratonRequest{
@@ -61,16 +66,25 @@ func AdminGetAsyncWFConfig(c *cli.Context) error {
 func AdminUpdateAsyncWFConfig(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	domainName := getRequiredOption(c, FlagDomain)
-	asyncWFCfgJSON := getRequiredOption(c, FlagJSON)
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Domain Flag not found: ", err)
+	}
+	asyncWFCfgJSON, err := getRequiredOption(c, FlagJSON)
+	if err != nil {
+		return PrintableError("JSON Flag not found: ", err)
+	}
 
 	var cfg types.AsyncWorkflowConfiguration
-	err := json.Unmarshal([]byte(asyncWFCfgJSON), &cfg)
+	err = json.Unmarshal([]byte(asyncWFCfgJSON), &cfg)
 	if err != nil {
 		return PrintableError("Failed to parse async workflow config", err)
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	req := &types.UpdateDomainAsyncWorkflowConfiguratonRequest{

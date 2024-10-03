@@ -64,15 +64,17 @@ func newDomainCLI(
 	d.frontendClient = initializeFrontendClient(c)
 	if isAdminMode {
 		d.frontendAdminClient = initializeFrontendAdminClient(c)
-		d.domainHandler = initializeAdminDomainHandler(c)
+		d.domainHandler, err = initializeAdminDomainHandler(c)
 	}
 	return d
 }
 
 // RegisterDomain register a domain
 func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
-	domainName := getRequiredOption(c, FlagDomain)
-
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError(fmt.Sprintf("Option %s format is invalid.", domainName), err)
+	}
 	description := c.String(FlagDescription)
 	ownerEmail := c.String(FlagOwnerEmail)
 	retentionDays := defaultDomainRetentionDays
@@ -81,7 +83,6 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		retentionDays = c.Int(FlagRetentionDays)
 	}
 	securityToken := c.String(FlagSecurityToken)
-	var err error
 
 	isGlobalDomain := true
 	if c.IsSet(FlagIsGlobalDomain) {
@@ -145,7 +146,10 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		IsGlobalDomain:                         isGlobalDomain,
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error when register domain", err)
+	}
 	defer cancel()
 	err = d.registerDomain(ctx, request)
 	if err != nil {
@@ -160,10 +164,15 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 
 // UpdateDomain updates a domain
 func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
-	domainName := getRequiredOption(c, FlagDomain)
-
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError(fmt.Sprintf("Option %s format is invalid.", domainName), err)
+	}
 	var updateRequest *types.UpdateDomainRequest
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error when update domain", err)
+	}
 	defer cancel()
 
 	if c.IsSet(FlagActiveClusterName) {
@@ -274,7 +283,7 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 
 	securityToken := c.String(FlagSecurityToken)
 	updateRequest.SecurityToken = securityToken
-	_, err := d.updateDomain(ctx, updateRequest)
+	_, err = d.updateDomain(ctx, updateRequest)
 	if err != nil {
 		if _, ok := err.(*types.EntityNotExistsError); ok {
 			return PrintableError(fmt.Sprintf("Domain %s does not exist.", domainName), err)
@@ -286,11 +295,17 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 }
 
 func (d *domainCLIImpl) DeprecateDomain(c *cli.Context) error {
-	domainName := getRequiredOption(c, FlagDomain)
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError(fmt.Sprintf("Option %s format is invalid.", domainName), err)
+	}
 	securityToken := c.String(FlagSecurityToken)
 	force := c.Bool(FlagForce)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error when deprecate domain", err)
+	}
 	defer cancel()
 
 	if !force {
@@ -310,7 +325,7 @@ func (d *domainCLIImpl) DeprecateDomain(c *cli.Context) error {
 			return PrintableError("Operation DeprecateDomain failed.", errors.New("workflow still running in this domain"))
 		}
 	}
-	err := d.deprecateDomain(ctx, &types.DeprecateDomainRequest{
+	err = d.deprecateDomain(ctx, &types.DeprecateDomainRequest{
 		Name:          domainName,
 		SecurityToken: securityToken,
 	})
@@ -334,10 +349,13 @@ func (d *domainCLIImpl) FailoverDomains(c *cli.Context) error {
 
 // return succeed and failed domains for testing purpose
 func (d *domainCLIImpl) failoverDomains(c *cli.Context) ([]string, []string, error) {
-	targetCluster := getRequiredOption(c, FlagActiveClusterName)
+	targetCluster, err := getRequiredOption(c, FlagActiveClusterName)
+	if err != nil {
+		return nil, nil, PrintableError(fmt.Sprintf("Option %s format is invalid.", targetCluster), err)
+	}
 	domains, err := d.getAllDomains(c)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to list domains: %w", err)
+		return nil, nil, PrintableError("Failed to list domains: %w", err)
 	}
 	shouldFailover := func(domain *types.DescribeDomainResponse) bool {
 		isDomainNotActiveInTargetCluster := domain.ReplicationConfiguration.GetActiveClusterName() != targetCluster
@@ -367,7 +385,10 @@ func (d *domainCLIImpl) getAllDomains(c *cli.Context) ([]*types.DescribeDomainRe
 	var res []*types.DescribeDomainResponse
 	pagesize := int32(200)
 	var token []byte
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return nil, PrintableError("Error when context get all domain", err)
+	}
 	defer cancel()
 	for more := true; more; more = len(token) > 0 {
 		listRequest := &types.ListDomainsRequest{
@@ -394,9 +415,12 @@ func (d *domainCLIImpl) failover(c *cli.Context, domainName string, targetCluste
 		Name:              domainName,
 		ActiveClusterName: common.StringPtr(targetCluster),
 	}
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error when failover context", err)
+	}
 	defer cancel()
-	_, err := d.updateDomain(ctx, updateRequest)
+	_, err = d.updateDomain(ctx, updateRequest)
 	return err
 }
 
@@ -437,7 +461,10 @@ func (d *domainCLIImpl) DescribeDomain(c *cli.Context) error {
 		return PrintableError("At least domainID or domainName must be provided.", nil)
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error when list domains info", err)
+	}
 	defer cancel()
 	resp, err := d.describeDomain(ctx, &request)
 	if err != nil {
@@ -501,8 +528,8 @@ type DomainRow struct {
 }
 
 type DomainMigrationRow struct {
-	ValidationCheck   string `header: "Validation Checker"`
-	ValidationResult  bool   `header: "Validation Result"`
+	ValidationCheck   string `header:"Validation Checker"`
+	ValidationResult  bool   `header:"Validation Result"`
 	ValidationDetails ValidationDetails
 }
 

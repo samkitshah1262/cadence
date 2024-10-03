@@ -55,7 +55,10 @@ func AdminDBScan(c *cli.Context) error {
 		return PrintableError("unknown scan type", err)
 	}
 
-	numberOfShards := getRequiredIntOption(c, FlagNumberOfShards)
+	numberOfShards, err := getRequiredIntOption(c, FlagNumberOfShards)
+	if err != nil {
+		return PrintableError("Error getting number of shards ", err)
+	}
 	collectionSlice := c.StringSlice(FlagInvariantCollection)
 
 	var collections []invariant.Collection
@@ -87,7 +90,10 @@ func AdminDBScan(c *cli.Context) error {
 	}
 	ef := scanType.ToExecutionFetcher()
 
-	input := getInputFile(c.String(FlagInputFile))
+	input, err := getInputFile(c.String(FlagInputFile))
+	if err != nil {
+		return PrintableError("Error getting input file ", err)
+	}
 
 	dec := json.NewDecoder(input)
 	if err != nil {
@@ -107,7 +113,10 @@ func AdminDBScan(c *cli.Context) error {
 	}
 
 	for _, e := range data {
-		execution, result := checkExecution(c, numberOfShards, e, invariants, ef)
+		execution, result, err := checkExecution(c, numberOfShards, e, invariants, ef)
+		if err != nil {
+			return PrintableError("Error checking execution: ", err)
+		}
 		out := store.ScanOutputEntity{
 			Execution: execution,
 			Result:    result,
@@ -129,11 +138,14 @@ func checkExecution(
 	req fetcher.ExecutionRequest,
 	invariants []executions.InvariantFactory,
 	fetcher executions.ExecutionFetcher,
-) (interface{}, invariant.ManagerCheckResult) {
-	execManager := initializeExecutionStore(c, common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards))
+) (interface{}, invariant.ManagerCheckResult, error) {
+	execManager, err := initializeExecutionStore(c, common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards))
+	if err != nil {
+		return nil, invariant.ManagerCheckResult{}, PrintableError("Error initializing exec manager ", err)
+	}
 	defer execManager.Close()
 
-	historyV2Mgr := initializeHistoryManager(c)
+	historyV2Mgr, err := initializeHistoryManager(c)
 	defer historyV2Mgr.Close()
 
 	pr := persistence.NewPersistenceRetryer(
@@ -142,13 +154,16 @@ func checkExecution(
 		common.CreatePersistenceRetryPolicy(),
 	)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return nil, invariant.ManagerCheckResult{}, PrintableError("Error creating new context ", err)
+	}
 	defer cancel()
 
 	execution, err := fetcher(ctx, pr, req)
 
 	if err != nil {
-		return nil, invariant.ManagerCheckResult{}
+		return nil, invariant.ManagerCheckResult{}, PrintableError("Error in fetching context: ", err)
 	}
 
 	var ivs []invariant.Invariant
@@ -157,12 +172,15 @@ func checkExecution(
 		ivs = append(ivs, fn(pr, cache.NewNoOpDomainCache()))
 	}
 
-	return execution, invariant.NewInvariantManager(ivs).RunChecks(ctx, execution)
+	return execution, invariant.NewInvariantManager(ivs).RunChecks(ctx, execution), nil
 }
 
 // AdminDBScanUnsupportedWorkflow is to scan DB for unsupported workflow for a new release
 func AdminDBScanUnsupportedWorkflow(c *cli.Context) error {
-	outputFile := getOutputFile(c.String(FlagOutputFilename))
+	outputFile, err := getOutputFile(c.String(FlagOutputFilename))
+	if err != nil {
+		return PrintableError("Error getting output file: ", err)
+	}
 	startShardID := c.Int(FlagLowerShardBound)
 	endShardID := c.Int(FlagUpperShardBound)
 
@@ -182,7 +200,10 @@ func listExecutionsByShardID(
 	outputFile *os.File,
 ) error {
 
-	client := initializeExecutionStore(c, shardID)
+	client, err := initializeExecutionStore(c, shardID)
+	if err != nil {
+		return PrintableError("Error initializinf execution store ", err)
+	}
 	defer client.Close()
 
 	paginationFunc := func(paginationToken []byte) ([]interface{}, []byte, error) {

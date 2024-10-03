@@ -75,12 +75,6 @@ type RenderOptions struct {
 
 // Render is an entry point for presentation layer. It uses --format flag to determine output format.
 func Render(c *cli.Context, data interface{}, opts RenderOptions) (err error) {
-	defer func() {
-		if err != nil {
-			ErrorAndExit("failed to render", err)
-		}
-	}()
-
 	// For now always output to stdout
 	w := os.Stdout
 
@@ -104,8 +98,12 @@ func Render(c *cli.Context, data interface{}, opts RenderOptions) (err error) {
 			}
 		}
 	}
+	
+	if err := RenderTemplate(w, data, template, opts); err != nil {
+		return fmt.Errorf("failed to render: %w", err)
+	}
 
-	return RenderTemplate(w, data, template, opts)
+	return nil
 }
 
 // RenderTemplate uses golang text/template format to render data with user provided template

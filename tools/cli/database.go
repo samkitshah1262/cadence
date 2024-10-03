@@ -150,52 +150,68 @@ func getDBFlags() []cli.Flag {
 	}
 }
 
-func initializeExecutionStore(c *cli.Context, shardID int) persistence.ExecutionManager {
-	factory := getPersistenceFactory(c)
+func initializeExecutionStore(c *cli.Context, shardID int) (persistence.ExecutionManager, error) {
+	factory, err := getPersistenceFactory(c)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get persistence factory", err)
+	}
 	historyManager, err := factory.NewExecutionManager(shardID)
 	if err != nil {
-		ErrorAndExit("Failed to initialize history manager", err)
+		return nil, fmt.Errorf("Failed to initialize history manager", err)
 	}
-	return historyManager
+	return historyManager, nil
 }
 
-func initializeHistoryManager(c *cli.Context) persistence.HistoryManager {
-	factory := getPersistenceFactory(c)
+func initializeHistoryManager(c *cli.Context) (persistence.HistoryManager, error) {
+	factory, err := getPersistenceFactory(c)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get persistence factory", err)
+	}
 	historyManager, err := factory.NewHistoryManager()
 	if err != nil {
-		ErrorAndExit("Failed to initialize history manager", err)
+		return nil, fmt.Errorf("Failed to initialize history manager", err)
 	}
-	return historyManager
+	return historyManager, nil
 }
 
-func initializeShardManager(c *cli.Context) persistence.ShardManager {
-	factory := getPersistenceFactory(c)
+func initializeShardManager(c *cli.Context) (persistence.ShardManager, error) {
+	factory, err := getPersistenceFactory(c)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get persistence factory", err)
+	}
 	shardManager, err := factory.NewShardManager()
 	if err != nil {
-		ErrorAndExit("Failed to initialize shard manager", err)
+		return nil, fmt.Errorf("Failed to initialize shard manager", err)
 	}
-	return shardManager
+	return shardManager, nil
 }
 
-func initializeDomainManager(c *cli.Context) persistence.DomainManager {
-	factory := getPersistenceFactory(c)
+func initializeDomainManager(c *cli.Context) (persistence.DomainManager, error) {
+	factory, err := getPersistenceFactory(c)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get persistence factory", err)
+	}
 	domainManager, err := factory.NewDomainManager()
 	if err != nil {
-		ErrorAndExit("Failed to initialize domain manager", err)
+		return nil, fmt.Errorf("Failed to initialize domain manager", err)
 	}
-	return domainManager
+	return domainManager, nil
 }
 
 var persistenceFactory client.Factory
+var err error
 
-func getPersistenceFactory(c *cli.Context) client.Factory {
+func getPersistenceFactory(c *cli.Context) (client.Factory, error) {
 	if persistenceFactory == nil {
-		persistenceFactory = initPersistenceFactory(c)
+		persistenceFactory, err = initPersistenceFactory(c)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return persistenceFactory
+	return persistenceFactory, nil
 }
 
-func initPersistenceFactory(c *cli.Context) client.Factory {
+func initPersistenceFactory(c *cli.Context) (client.Factory, error) {
 	cfg, err := cFactory.ServerConfig(c)
 
 	if err != nil {
@@ -214,7 +230,10 @@ func initPersistenceFactory(c *cli.Context) client.Factory {
 
 	// If there are any overrides provided via CLI flags, apply them here
 	defaultStore := cfg.Persistence.DataStores[cfg.Persistence.DefaultStore]
-	defaultStore = overrideDataStore(c, defaultStore)
+	defaultStore, err = overrideDataStore(c, defaultStore)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to override data store: ", err)
+	}
 	cfg.Persistence.DataStores[cfg.Persistence.DefaultStore] = defaultStore
 
 	cfg.Persistence.TransactionSizeLimit = dynamicconfig.GetIntPropertyFn(common.DefaultTransactionSizeLimit)
@@ -231,13 +250,17 @@ func initPersistenceFactory(c *cli.Context) client.Factory {
 		&persistence.DynamicConfiguration{
 			EnableSQLAsyncTransaction: dynamicconfig.GetBoolPropertyFn(false),
 		},
-	)
+	), nil
 }
 
-func overrideDataStore(c *cli.Context, ds config.DataStore) config.DataStore {
+func overrideDataStore(c *cli.Context, ds config.DataStore) (config.DataStore, error) {
 	if c.IsSet(FlagDBType) {
 		// overriding DBType will wipe out all settings, everything will be set from flags only
-		ds = createDataStore(c)
+		var err error
+		ds, err = createDataStore(c)
+		if err != nil {
+			return config.DataStore{}, fmt.Errorf("Error in create data store: ", err) // can not return nil for .datastore value 
+		}
 	}
 
 	if ds.NoSQL != nil {
@@ -247,21 +270,20 @@ func overrideDataStore(c *cli.Context, ds config.DataStore) config.DataStore {
 		overrideSQLDataStore(c, ds.SQL)
 	}
 
-	return ds
+	return ds, nil
 }
 
-func createDataStore(c *cli.Context) config.DataStore {
+func createDataStore(c *cli.Context) (config.DataStore, error) {
 	dbType := c.String(FlagDBType)
 	switch dbType {
 	case cassandra.PluginName:
-		return config.DataStore{NoSQL: &config.NoSQL{PluginName: cassandra.PluginName}}
+		return config.DataStore{NoSQL: &config.NoSQL{PluginName: cassandra.PluginName}}, nil
 	default:
 		if sql.PluginRegistered(dbType) {
-			return config.DataStore{SQL: &config.SQL{PluginName: dbType}}
+			return config.DataStore{SQL: &config.SQL{PluginName: dbType}}, nil
 		}
 	}
-	ErrorAndExit(fmt.Sprintf("The DB type is not supported. Options are: %s.", supportedDBs), nil)
-	return config.DataStore{}
+	return config.DataStore{}, fmt.Errorf(fmt.Sprintf("The DB type is not supported. Options are: %s.", supportedDBs), nil)
 }
 
 func overrideNoSQLDataStore(c *cli.Context, cfg *config.NoSQL) {

@@ -112,8 +112,14 @@ func AdminCatIndices(c *cli.Context) error {
 // AdminIndex used to bulk insert message from kafka parse
 func AdminIndex(c *cli.Context) error {
 	esClient := cFactory.ElasticSearchClient(c)
-	indexName := getRequiredOption(c, FlagIndex)
-	inputFileName := getRequiredOption(c, FlagInputFile)
+	indexName, err := getRequiredOption(c, FlagIndex)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	inputFileName, err := getRequiredOption(c, FlagInputFile)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 	batchSize := c.Int(FlagBatchSize)
 
 	messages, err := parseIndexerMessage(inputFileName)
@@ -137,7 +143,10 @@ func AdminIndex(c *cli.Context) error {
 		var req elastic.BulkableRequest
 		switch message.GetMessageType() {
 		case indexer.MessageTypeIndex:
-			doc := generateESDoc(message)
+			doc, err := generateESDoc(message)
+			if err != nil {
+				return PrintableError("Failed to generate ESDoc: ", err)
+			}
 			req = elastic.NewBulkIndexRequest().
 				Index(indexName).
 				Type(elasticsearch.GetESDocType()).
@@ -181,8 +190,14 @@ func AdminIndex(c *cli.Context) error {
 // AdminDelete used to delete documents from ElasticSearch with input of list result
 func AdminDelete(c *cli.Context) error {
 	esClient := cFactory.ElasticSearchClient(c)
-	indexName := getRequiredOption(c, FlagIndex)
-	inputFileName := getRequiredOption(c, FlagInputFile)
+	indexName, err := getRequiredOption(c, FlagIndex)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	inputFileName, err := getRequiredOption(c, FlagInputFile)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 	batchSize := c.Int(FlagBatchSize)
 	rps := c.Int(FlagRPS)
 	ratelimiter := tokenbucket.New(rps, clock.NewRealTimeSource())
@@ -272,7 +287,7 @@ func parseIndexerMessage(fileName string) (messages []*indexer.Message, err erro
 	return messages, nil
 }
 
-func generateESDoc(msg *indexer.Message) map[string]interface{} {
+func generateESDoc(msg *indexer.Message) (map[string]interface{},error) {
 	doc := make(map[string]interface{})
 	doc[es.DomainID] = msg.GetDomainID()
 	doc[es.WorkflowID] = msg.GetWorkflowID()
@@ -289,10 +304,10 @@ func generateESDoc(msg *indexer.Message) map[string]interface{} {
 		case indexer.FieldTypeBinary:
 			doc[k] = v.GetBinaryData()
 		default:
-			ErrorAndExit("Unknown field type", nil)
+			return nil, fmt.Errorf("Unknown field type", nil)
 		}
 	}
-	return doc
+	return doc, nil
 }
 
 // This function is used to trim unnecessary tag in returned json for table header
@@ -317,8 +332,14 @@ func toTimeStr(s interface{}) string {
 // GenerateReport generate report for an aggregation query to ES
 func GenerateReport(c *cli.Context) error {
 	// use url command argument to create client
-	index := getRequiredOption(c, FlagIndex)
-	sql := getRequiredOption(c, FlagListQuery)
+	index, err := getRequiredOption(c, FlagIndex)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	sql, err := getRequiredOption(c, FlagListQuery)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 	var reportFormat, reportFilePath string
 	if c.IsSet(FlagOutputFormat) {
 		reportFormat = c.String(FlagOutputFormat)

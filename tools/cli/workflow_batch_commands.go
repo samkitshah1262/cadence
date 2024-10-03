@@ -38,13 +38,22 @@ import (
 
 // TerminateBatchJob stops abatch job
 func TerminateBatchJob(c *cli.Context) error {
-	jobID := getRequiredOption(c, FlagJobID)
-	reason := getRequiredOption(c, FlagReason)
+	jobID, err := getRequiredOption(c, FlagJobID)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	reason, err := getRequiredOption(c, FlagReason)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 	svcClient := cFactory.ServerFrontendClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
-	err := svcClient.TerminateWorkflowExecution(
+	err = svcClient.TerminateWorkflowExecution(
 		tcCtx,
 		&types.TerminateWorkflowExecutionRequest{
 			Domain: common.BatcherLocalDomainName,
@@ -68,10 +77,15 @@ func TerminateBatchJob(c *cli.Context) error {
 
 // DescribeBatchJob describe the status of the batch job
 func DescribeBatchJob(c *cli.Context) error {
-	jobID := getRequiredOption(c, FlagJobID)
-
+	jobID, err := getRequiredOption(c, FlagJobID)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 	svcClient := cFactory.ServerFrontendClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	wf, err := svcClient.DescribeWorkflowExecution(
@@ -113,11 +127,17 @@ func DescribeBatchJob(c *cli.Context) error {
 
 // ListBatchJobs list the started batch jobs
 func ListBatchJobs(c *cli.Context) error {
-	domain := getRequiredOption(c, FlagDomain)
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 	pageSize := c.Int(FlagPageSize)
 	svcClient := cFactory.ServerFrontendClient(c)
 
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	resp, err := svcClient.ListWorkflowExecutions(
@@ -155,10 +175,22 @@ func ListBatchJobs(c *cli.Context) error {
 
 // StartBatchJob starts a batch job
 func StartBatchJob(c *cli.Context) error {
-	domain := getRequiredOption(c, FlagDomain)
-	query := getRequiredOption(c, FlagListQuery)
-	reason := getRequiredOption(c, FlagReason)
-	batchType := getRequiredOption(c, FlagBatchType)
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	query, err := getRequiredOption(c, FlagListQuery)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	reason, err := getRequiredOption(c, FlagReason)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	batchType, err := getRequiredOption(c, FlagBatchType)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 
 	if !validateBatchType(batchType) {
 		return PrintableError("batchType is not valid, supported:"+strings.Join(batcher.AllBatchTypes, ","), nil)
@@ -166,13 +198,25 @@ func StartBatchJob(c *cli.Context) error {
 	operator := getCurrentUserFromEnv()
 	var sigName, sigVal string
 	if batchType == batcher.BatchTypeSignal {
-		sigName = getRequiredOption(c, FlagSignalName)
-		sigVal = getRequiredOption(c, FlagInput)
+		sigName, err = getRequiredOption(c, FlagSignalName)
+		if err != nil {
+			return PrintableError("Flag not found: ", err)
+		}
+		sigVal, err = getRequiredOption(c, FlagInput)
+		if err != nil {
+			return PrintableError("Flag not found: ", err)
+		}
 	}
 	var sourceCluster, targetCluster string
 	if batchType == batcher.BatchTypeReplicate {
-		sourceCluster = getRequiredOption(c, FlagSourceCluster)
-		targetCluster = getRequiredOption(c, FlagTargetCluster)
+		sourceCluster, err = getRequiredOption(c, FlagSourceCluster)
+		if err != nil {
+			return PrintableError("Flag not found: ", err)
+		}
+		targetCluster, err = getRequiredOption(c, FlagTargetCluster)
+		if err != nil {
+			return PrintableError("Flag not found: ", err)
+		}
 	}
 	rps := c.Int(FlagRPS)
 	pageSize := c.Int(FlagPageSize)
@@ -181,7 +225,10 @@ func StartBatchJob(c *cli.Context) error {
 	heartBeatTimeout := time.Duration(c.Int(FlagActivityHeartBeatTimeout)) * time.Second
 
 	svcClient := cFactory.ServerFrontendClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Add new context failed.", err)
+	}
 	defer cancel()
 
 	resp, err := svcClient.CountWorkflowExecutions(
@@ -212,7 +259,10 @@ func StartBatchJob(c *cli.Context) error {
 		}
 
 	}
-	tcCtx, cancel = newContext(c)
+	tcCtx, cancel, err = newContext(c)
+	if err != nil {
+		return PrintableError("Add new context failed.", err)
+	}
 	defer cancel()
 
 	params := batcher.BatchParams{

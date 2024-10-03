@@ -34,7 +34,10 @@ import (
 func AdminGetGlobalIsolationGroups(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	req := &types.GetGlobalIsolationGroupsRequest{}
@@ -56,10 +59,13 @@ func AdminGetGlobalIsolationGroups(c *cli.Context) error {
 func AdminUpdateGlobalIsolationGroups(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
-	err := validateIsolationGroupUpdateArgs(
+	err = validateIsolationGroupUpdateArgs(
 		c.String(FlagDomain),
 		c.String(FlagDomain),
 		c.StringSlice(FlagIsolationGroupSetDrains),
@@ -93,7 +99,10 @@ func AdminGetDomainIsolationGroups(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 	domain := c.String(FlagDomain)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	req := &types.GetDomainIsolationGroupsRequest{
@@ -130,7 +139,10 @@ func AdminUpdateDomainIsolationGroups(c *cli.Context) error {
 		return PrintableError("invalid args:", err)
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	cfg, err := parseIsolationGroupCliInputCfg(

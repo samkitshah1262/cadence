@@ -57,9 +57,17 @@ type startParams struct {
 
 // AdminFailoverStart start failover workflow
 func AdminFailoverStart(c *cli.Context) error {
+	targetcluster, err := getRequiredOption(c, FlagTargetCluster)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
+	sourcecluster, err := getRequiredOption(c, FlagSourceCluster)
+	if err != nil {
+		return PrintableError("Flag not found: ", err)
+	}
 	params := &startParams{
-		targetCluster:                  getRequiredOption(c, FlagTargetCluster),
-		sourceCluster:                  getRequiredOption(c, FlagSourceCluster),
+		targetCluster:                  targetcluster,
+		sourceCluster:                  sourcecluster,
 		batchFailoverSize:              c.Int(FlagFailoverBatchSize),
 		batchFailoverWaitTimeInSeconds: c.Int(FlagFailoverWaitTime),
 		failoverTimeout:                c.Int(FlagFailoverTimeout),
@@ -94,7 +102,10 @@ func AdminFailoverResume(c *cli.Context) error {
 // AdminFailoverQuery query a failover workflow
 func AdminFailoverQuery(c *cli.Context) error {
 	client := getCadenceClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 	workflowID := getFailoverWorkflowID(c)
 	runID := getRunID(c)
@@ -124,7 +135,10 @@ func AdminFailoverQuery(c *cli.Context) error {
 // AdminFailoverAbort abort a failover workflow
 func AdminFailoverAbort(c *cli.Context) error {
 	client := getCadenceClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	reason := c.String(FlagReason)
@@ -142,7 +156,7 @@ func AdminFailoverAbort(c *cli.Context) error {
 		Reason: reason,
 	}
 
-	err := client.TerminateWorkflowExecution(tcCtx, request)
+	err = client.TerminateWorkflowExecution(tcCtx, request)
 	if err != nil {
 		return PrintableError("Failed to abort failover workflow", err)
 	}
@@ -154,7 +168,10 @@ func AdminFailoverAbort(c *cli.Context) error {
 // AdminFailoverRollback rollback a failover run
 func AdminFailoverRollback(c *cli.Context) error {
 	client := getCadenceClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	runID := getRunID(c)
@@ -262,7 +279,10 @@ func getRunID(c *cli.Context) string {
 }
 
 func failoverStart(c *cli.Context, params *startParams) error {
-	validateStartParams(params)
+	err := validateStartParams(params)
+	if err != nil {
+		return PrintableError("Failed validation of start params", err)
+	}
 
 	workflowID := failovermanager.FailoverWorkflowID
 	targetCluster := params.targetCluster
@@ -278,10 +298,17 @@ func failoverStart(c *cli.Context, params *startParams) error {
 	}
 
 	client := getCadenceClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
+	operator, err := getOperator()
+	if err != nil {
+		return PrintableError("Failed to get operator", err)
+	}
 	memo, err := getWorkflowMemo(map[string]interface{}{
-		common.MemoKeyForOperator: getOperator(),
+		common.MemoKeyForOperator: operator,
 	})
 	if err != nil {
 		return PrintableError("Failed to serialize memo", err)
@@ -351,13 +378,13 @@ func getFailoverWorkflowID(c *cli.Context) string {
 	return failovermanager.FailoverWorkflowID
 }
 
-func getOperator() string {
+func getOperator() (string, error) {
 	user, err := user.Current()
 	if err != nil {
-		ErrorAndExit("Unable to get operator info", err)
+		return "", fmt.Errorf("Unable to get operator info", err)
 	}
 
-	return fmt.Sprintf("%s (username: %s)", user.Name, user.Username)
+	return fmt.Sprintf("%s (username: %s)", user.Name, user.Username), nil
 }
 
 func isWorkflowTerminated(descResp *types.DescribeWorkflowExecutionResponse) bool {
@@ -366,7 +393,10 @@ func isWorkflowTerminated(descResp *types.DescribeWorkflowExecutionResponse) boo
 
 func executePauseOrResume(c *cli.Context, workflowID string, isPause bool) error {
 	client := getCadenceClient(c)
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	runID := getRunID(c)
@@ -390,15 +420,15 @@ func executePauseOrResume(c *cli.Context, workflowID string, isPause bool) error
 	return client.SignalWorkflowExecution(tcCtx, request)
 }
 
-func validateStartParams(params *startParams) {
+func validateStartParams(params *startParams) error {
 	if len(params.targetCluster) == 0 {
-		ErrorAndExit("targetCluster is not provided", nil)
+		return fmt.Errorf("targetCluster is not provided", nil)
 	}
 	if len(params.sourceCluster) == 0 {
-		ErrorAndExit("sourceCluster is not provided", nil)
+		return fmt.Errorf("sourceCluster is not provided", nil)
 	}
 	if params.targetCluster == params.sourceCluster {
-		ErrorAndExit("targetCluster is same as sourceCluster", nil)
+		return fmt.Errorf("targetCluster is same as sourceCluster", nil)
 	}
 	if params.batchFailoverSize <= 0 {
 		params.batchFailoverSize = defaultBatchFailoverSize
@@ -409,4 +439,5 @@ func validateStartParams(params *startParams) {
 	if params.failoverWorkflowTimeout <= 0 {
 		params.failoverWorkflowTimeout = defaultFailoverWorkflowTimeoutInSeconds
 	}
+	return nil
 }

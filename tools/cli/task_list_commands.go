@@ -45,11 +45,20 @@ type (
 // DescribeTaskList show pollers info of a given tasklist
 func DescribeTaskList(c *cli.Context) error {
 	wfClient := getWorkflowClient(c)
-	domain := getRequiredOption(c, FlagDomain)
-	taskList := getRequiredOption(c, FlagTaskList)
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Domain flag not found: ", err)
+	}
+	taskList, err := getRequiredOption(c, FlagTaskList)
+	if err != nil {
+		return PrintableError("Tasklist flag not found: ", err)
+	}
 	taskListType := strToTaskListType(c.String(FlagTaskListType)) // default type is decision
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	request := &types.DescribeTaskListRequest{
@@ -75,10 +84,19 @@ func DescribeTaskList(c *cli.Context) error {
 // ListTaskListPartitions gets all the tasklist partition and host information.
 func ListTaskListPartitions(c *cli.Context) error {
 	frontendClient := cFactory.ServerFrontendClient(c)
-	domain := getRequiredOption(c, FlagDomain)
-	taskList := getRequiredOption(c, FlagTaskList)
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Domain flag not found: ", err)
+	}
+	taskList, err := getRequiredOption(c, FlagTaskList)
+	if err != nil {
+		return PrintableError("Tasklist flag not found: ", err)
+	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 	request := &types.ListTaskListPartitionsRequest{
 		Domain:   domain,

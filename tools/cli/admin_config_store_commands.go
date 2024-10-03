@@ -52,10 +52,16 @@ type cliFilter struct {
 func AdminGetDynamicConfig(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	dcName := getRequiredOption(c, FlagDynamicConfigName)
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return PrintableError("Dynamic config name flag not found ", err)
+	}
 	filters := c.StringSlice(FlagDynamicConfigFilter)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	if len(filters) == 0 {
@@ -116,10 +122,16 @@ func AdminGetDynamicConfig(c *cli.Context) error {
 func AdminUpdateDynamicConfig(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	dcName := getRequiredOption(c, FlagDynamicConfigName)
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return PrintableError("Dynamic config name flag not found ", err)
+	}
 	dcValues := c.StringSlice(FlagDynamicConfigValue)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	var parsedValues []*types.DynamicConfigValue
@@ -148,7 +160,7 @@ func AdminUpdateDynamicConfig(c *cli.Context) error {
 		ConfigValues: parsedValues,
 	}
 
-	err := adminClient.UpdateDynamicConfig(ctx, req)
+	err = adminClient.UpdateDynamicConfig(ctx, req)
 	if err != nil {
 		return PrintableError("Failed to update dynamic config value", err)
 	}
@@ -160,10 +172,16 @@ func AdminUpdateDynamicConfig(c *cli.Context) error {
 func AdminRestoreDynamicConfig(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	dcName := getRequiredOption(c, FlagDynamicConfigName)
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return PrintableError("Dynamic config name flag not found ", err)
+	}
 	filters := c.StringSlice(FlagDynamicConfigFilter)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	parsedFilters, err := parseInputFilterArray(filters)
@@ -188,7 +206,10 @@ func AdminRestoreDynamicConfig(c *cli.Context) error {
 func AdminListDynamicConfig(c *cli.Context) error {
 	adminClient := cFactory.ServerAdminClient(c)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 
 	req := &types.ListDynamicConfigRequest{

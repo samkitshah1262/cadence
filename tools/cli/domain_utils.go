@@ -22,6 +22,7 @@ package cli
 
 import (
 	"strings"
+	"fmt"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/tally"
@@ -284,39 +285,55 @@ func initializeFrontendAdminClient(
 
 func initializeAdminDomainHandler(
 	context *cli.Context,
-) domain.Handler {
+) (domain.Handler, error) {
 
 	configuration, err := cFactory.ServerConfig(context)
 	if err != nil {
-		ErrorAndExit("Unable to load config.", err)
+		return nil, fmt.Errorf("Unable to load config.", err)
 	}
 
 	metricsClient := initializeMetricsClient()
-	logger := initializeLogger(configuration)
+	logger, err := initializeLogger(configuration)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to load logger.", err)
+	}
 	clusterMetadata := initializeClusterMetadata(configuration, metricsClient, logger)
-	metadataMgr := initializeDomainManager(context)
-	dynamicConfig := initializeDynamicConfig(configuration, logger)
+	metadataMgr, err := initializeDomainManager(context)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to load metadata manager.", err)
+	}
+	dynamicConfig, err := initializeDynamicConfig(configuration, logger)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to load dynamic config.", err)
+	}
+	archivalProvider, err := initializeArchivalProvider(configuration, clusterMetadata, metricsClient, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize archival provider: %w", err)
+	}
 	return initializeDomainHandler(
 		logger,
 		metadataMgr,
 		clusterMetadata,
 		initializeArchivalMetadata(configuration, dynamicConfig),
-		initializeArchivalProvider(configuration, clusterMetadata, metricsClient, logger),
-	)
+		archivalProvider,
+	), nil
 }
 
 func loadConfig(
 	context *cli.Context,
-) *config.Config {
+) (*config.Config, error) {
 	env := getEnvironment(context)
 	zone := getZone(context)
-	configDir := getConfigDir(context)
-	var cfg config.Config
-	err := config.Load(env, configDir, zone, &cfg)
+	configDir, err := getConfigDir(context)
 	if err != nil {
-		ErrorAndExit("Unable to load config.", err)
+		return nil, fmt.Errorf("Unable to get config.", err)
 	}
-	return &cfg
+	var cfg config.Config
+	err = config.Load(env, configDir, zone, &cfg)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to load config.", err)
+	}
+	return &cfg, nil
 }
 
 func initializeDomainHandler(
@@ -346,12 +363,12 @@ func initializeDomainHandler(
 
 func initializeLogger(
 	serviceConfig *config.Config,
-) log.Logger {
+) (log.Logger, error) {
 	zapLogger, err := serviceConfig.Log.NewZapLogger()
 	if err != nil {
-		ErrorAndExit("failed to create zap logger, err: ", err)
+		return nil, fmt.Errorf("failed to create zap logger, err: ", err)
 	}
-	return loggerimpl.NewLogger(zapLogger)
+	return loggerimpl.NewLogger(zapLogger), nil
 }
 
 func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Client, logger log.Logger) cluster.Metadata {
@@ -388,7 +405,7 @@ func initializeArchivalProvider(
 	clusterMetadata cluster.Metadata,
 	metricsClient metrics.Client,
 	logger log.Logger,
-) provider.ArchiverProvider {
+) (provider.ArchiverProvider, error){
 
 	archiverProvider := provider.NewArchiverProvider(
 		serviceConfig.Archival.History.Provider,
@@ -415,9 +432,9 @@ func initializeArchivalProvider(
 		visibilityArchiverBootstrapContainer,
 	)
 	if err != nil {
-		ErrorAndExit("Error initializing archival provider.", err)
+		return nil, fmt.Errorf("Error initializing archival provider.", err)
 	}
-	return archiverProvider
+	return archiverProvider, nil
 }
 
 func initializeDomainReplicator(
@@ -432,7 +449,7 @@ func initializeDomainReplicator(
 func initializeDynamicConfig(
 	serviceConfig *config.Config,
 	logger log.Logger,
-) *dynamicconfig.Collection {
+) (*dynamicconfig.Collection, error) {
 
 	// the done channel is used by dynamic config to stop refreshing
 	// and CLI does not need that, so just close the done channel
@@ -444,9 +461,9 @@ func initializeDynamicConfig(
 		doneChan,
 	)
 	if err != nil {
-		ErrorAndExit("Error initializing dynamic config.", err)
+		return nil, fmt.Errorf("Error initializing dynamic config.", err)
 	}
-	return dynamicconfig.NewCollection(dynamicConfigClient, logger)
+	return dynamicconfig.NewCollection(dynamicConfigClient, logger), nil
 }
 
 func initializeMetricsClient() metrics.Client {
@@ -461,10 +478,10 @@ func getZone(c *cli.Context) string {
 	return strings.TrimSpace(c.String(FlagServiceZone))
 }
 
-func getConfigDir(c *cli.Context) string {
+func getConfigDir(c *cli.Context) (string, error) {
 	dirPath := c.String(FlagServiceConfigDir)
 	if len(dirPath) == 0 {
-		ErrorAndExit("Must provide service configuration dir path.", nil)
+		return "", fmt.Errorf("Must provide service configuration dir path.", nil)
 	}
-	return dirPath
+	return dirPath, nil
 }

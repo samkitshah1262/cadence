@@ -49,14 +49,23 @@ type (
 // AdminDescribeTaskList displays poller and status information of task list.
 func AdminDescribeTaskList(c *cli.Context) error {
 	frontendClient := cFactory.ServerFrontendClient(c)
-	domain := getRequiredOption(c, FlagDomain)
-	taskList := getRequiredOption(c, FlagTaskList)
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Domain flag not found: ", err)
+	}
+	taskList, err := getRequiredOption(c, FlagTaskList)
+	if err != nil {
+		return PrintableError("Tasklist flag not found: ", err)
+	}
 	taskListType := types.TaskListTypeDecision
 	if strings.ToLower(c.String(FlagTaskListType)) == "activity" {
 		taskListType = types.TaskListTypeActivity
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 	request := &types.DescribeTaskListRequest{
 		Domain:                domain,
@@ -89,9 +98,14 @@ func AdminDescribeTaskList(c *cli.Context) error {
 // AdminListTaskList displays all task lists under a domain.
 func AdminListTaskList(c *cli.Context) error {
 	frontendClient := cFactory.ServerFrontendClient(c)
-	domain := getRequiredOption(c, FlagDomain)
-
-	ctx, cancel := newContext(c)
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return PrintableError("Domain flag not found: ", err)
+	}
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return PrintableError("Error creating new context: ", err)
+	}
 	defer cancel()
 	request := &types.GetTaskListsByDomainRequest{
 		Domain: domain,
