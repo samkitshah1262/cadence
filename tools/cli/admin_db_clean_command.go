@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
 	"github.com/uber/cadence/service/worker/scanner/executions"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 // AdminDBClean is the command to clean up unhealthy executions.
@@ -50,7 +51,7 @@ func AdminDBClean(c *cli.Context) error {
 	scanType, err := executions.ScanTypeString(scanTypeFlag)
 
 	if err != nil {
-		return PrintableError("unknown scan type", err)
+		return commoncli.Problem("unknown scan type", err)
 	}
 	collectionSlice := c.StringSlice(FlagInvariantCollection)
 	blob := scanType.ToBlobstoreEntity()
@@ -59,7 +60,7 @@ func AdminDBClean(c *cli.Context) error {
 	for _, v := range collectionSlice {
 		collection, err := invariant.CollectionString(v)
 		if err != nil {
-			return PrintableError("unknown invariant collection", err)
+			return commoncli.Problem("unknown invariant collection", err)
 		}
 		collections = append(collections, collection)
 	}
@@ -69,13 +70,13 @@ func AdminDBClean(c *cli.Context) error {
 		logger, err = zap.NewDevelopment()
 		if err != nil {
 			// probably impossible with default config
-			return PrintableError("could not construct logger", err)
+			return commoncli.Problem("could not construct logger", err)
 		}
 	}
 
 	invariants := scanType.ToInvariants(collections, logger)
 	if len(invariants) < 1 {
-		return PrintableError(
+		return commoncli.Problem(
 			fmt.Sprintf("no invariants for scantype %q and collections %q",
 				scanType.String(),
 				collectionSlice),
@@ -90,7 +91,7 @@ func AdminDBClean(c *cli.Context) error {
 
 	dec := json.NewDecoder(input)
 	if err != nil {
-		return PrintableError("", err)
+		return commoncli.Problem("", err)
 	}
 	var data []*store.ScanOutputEntity
 

@@ -49,24 +49,26 @@ import (
 type (
 	// Params holds the set of parameters needed to initialize common service resources
 	Params struct {
-		Name            string
-		InstanceID      string
-		Logger          log.Logger
-		ThrottledLogger log.Logger
-		HostName        string
+		Name               string
+		InstanceID         string
+		Logger             log.Logger
+		ThrottledLogger    log.Logger
+		HostName           string
+		GetIsolationGroups func() []string
 
-		MetricScope                tally.Scope
-		MembershipResolver         membership.Resolver
-		RPCFactory                 common.RPCFactory
-		PProfInitializer           common.PProfInitializer
-		PersistenceConfig          config.Persistence
-		ClusterMetadata            cluster.Metadata
-		ReplicatorConfig           config.Replicator
-		MetricsClient              metrics.Client
-		MessagingClient            messaging.Client
-		BlobstoreClient            blobstore.Client
-		ESClient                   es.GenericClient
-		ESConfig                   *config.ElasticSearchConfig
+		MetricScope        tally.Scope
+		MembershipResolver membership.Resolver
+		RPCFactory         common.RPCFactory
+		PProfInitializer   common.PProfInitializer
+		PersistenceConfig  config.Persistence
+		ClusterMetadata    cluster.Metadata
+		ReplicatorConfig   config.Replicator
+		MetricsClient      metrics.Client
+		MessagingClient    messaging.Client
+		BlobstoreClient    blobstore.Client
+		ESClient           es.GenericClient
+		ESConfig           *config.ElasticSearchConfig
+
 		DynamicConfig              dynamicconfig.Client
 		ClusterRedirectionPolicy   *config.ClusterRedirectionPolicy
 		PublicClient               workflowserviceclient.Interface
@@ -78,6 +80,7 @@ type (
 		IsolationGroupState        isolationgroup.State     // This can be nil, the default state store will be chosen if so
 		Partitioner                partition.Partitioner
 		PinotConfig                *config.PinotVisibilityConfig
+		KafkaConfig                config.KafkaConfig
 		PinotClient                pinot.GenericClient
 		OSClient                   es.GenericClient
 		OSConfig                   *config.ElasticSearchConfig
