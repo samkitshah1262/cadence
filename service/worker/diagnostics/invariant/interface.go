@@ -24,6 +24,7 @@ package invariant
 
 import (
 	"context"
+	"encoding/json"
 )
 
 // InvariantCheckResult is the result from the invariant check
@@ -46,6 +47,7 @@ const (
 	RootCauseTypePollersStatus                       RootCause = "There are pollers for the tasklist. Check backlog status"
 	RootCauseTypeHeartBeatingNotEnabled              RootCause = "HeartBeating not enabled for activity"
 	RootCauseTypeHeartBeatingEnabledMissingHeartbeat RootCause = "HeartBeating enabled for activity but timed out due to missing heartbeat"
+	RootCauseTypeServiceSideIssue                    RootCause = "There is an issue in the worker service code that is causing this failure. Check identity for service logs"
 )
 
 func (r RootCause) String() string {
@@ -56,4 +58,9 @@ func (r RootCause) String() string {
 type Invariant interface {
 	Check(context.Context) ([]InvariantCheckResult, error)
 	RootCause(context.Context, []InvariantCheckResult) ([]InvariantRootCauseResult, error)
+}
+
+func MarshalData(rc any) []byte {
+	data, _ := json.Marshal(rc)
+	return data
 }
