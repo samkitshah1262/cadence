@@ -9,7 +9,7 @@ INSERT INTO domains (
 ) VALUES (
     54321, -- Default shard_id
     gen_random_uuid(), -- Generate a UUID for the domain ID
-    'example-domain', -- Domain name
+    'default', -- Domain name
     '{"key1":"value1","key2":"value2"}', -- Example JSON data
     'json', -- Encoding type
     TRUE -- Set to TRUE for a global domain

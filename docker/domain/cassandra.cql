@@ -6,7 +6,7 @@ INSERT INTO domains (
     123e4567-e89b-12d3-a456-426614174000, -- Replace with your UUID
     {
         id: 123e4567-e89b-12d3-a456-426614174000, -- Replace with your UUID
-        name: 'example-domain',
+        name: 'samkit_domain',
         status: 0, -- Registered
         description: 'This is an example domain.',
         data: {'key1': 'value1', 'key2': 'value2'},
@@ -28,10 +28,10 @@ INSERT INTO domains_by_name_v2 (
     notification_version
 ) VALUES (
     0,
-    'example-domain',
+    'default',
     {
         id: 123e4567-e89b-12d3-a456-426614174000, -- Replace with your UUID
-        name: 'example-domain',
+        name: 'default',
         status: 0, -- Registered
         description: 'This is an example domain.',
         data: {'key1': 'value1', 'key2': 'value2'},
@@ -44,8 +44,8 @@ INSERT INTO domains_by_name_v2 (
         visibility_archival_status: 0 -- Default to disabled
     },
     {
-        active_cluster_name: 'active-cluster',
-        clusters: [{cluster_name: 'active-cluster'}, {cluster_name: 'standby-cluster'}]
+        active_cluster_name: 'cluster0',
+        clusters: [{cluster_name: 'cluster0'}]
     },
     True, -- is_global_domain
     1,    -- config_version

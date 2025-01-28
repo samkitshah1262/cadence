@@ -9,7 +9,7 @@ INSERT INTO domains (
 ) VALUES (
     54321, -- Default shard_id
     UNHEX(REPLACE(UUID(), '-', '')), -- Generate a 16-byte UUID
-    'example-domain', -- Domain name
+    'default', -- Domain name
     '{"key1":"value1","key2":"value2"}', -- Example data as JSON
     'json', -- Encoding type
     1 -- Set to 1 for a global domain
