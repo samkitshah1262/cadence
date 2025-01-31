@@ -22,37 +22,15 @@
 
 package clock
 
-import "time"
+import (
+	"testing"
+	"time"
+)
 
-type Sustain struct {
-	started  time.Time
-	source   TimeSource
-	duration func() time.Duration
-}
+func BenchmarkRealTimerGate(b *testing.B) {
+	timer := NewTimerGate(NewRealTimeSource())
 
-func NewSustain(source TimeSource, duration func() time.Duration) Sustain {
-	return Sustain{
-		source:   source,
-		duration: duration,
+	for i := 0; i < b.N; i++ {
+		timer.Update(time.Now())
 	}
-}
-
-func (s *Sustain) Check(value bool) bool {
-	if value {
-		now := s.source.Now()
-		if s.started.IsZero() {
-			s.started = now
-		}
-		if now.Sub(s.started) >= s.duration() {
-			s.Reset()
-			return true
-		}
-	} else {
-		s.Reset()
-	}
-	return false
-}
-
-func (s *Sustain) Reset() {
-	s.started = time.Time{}
 }

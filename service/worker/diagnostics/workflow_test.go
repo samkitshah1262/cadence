@@ -63,6 +63,7 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 	mockResource := resource.NewTest(s.T(), controller, metrics.Worker)
 	publicClient := mockResource.GetSDKClient()
 	s.dw = &dw{
+		logger:        mockResource.GetLogger(),
 		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
@@ -141,10 +142,12 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	s.NoError(s.workflowEnv.GetWorkflowResult(&result))
 	s.ElementsMatch(timeoutIssues, result.DiagnosticsResult.Timeouts.Issues)
 	s.ElementsMatch(timeoutRootCause, result.DiagnosticsResult.Timeouts.RootCause)
+	s.True(result.DiagnosticsCompleted)
 
 	queriedResult := s.queryDiagnostics()
 	s.ElementsMatch(queriedResult.DiagnosticsResult.Timeouts.Issues, result.DiagnosticsResult.Timeouts.Issues)
 	s.ElementsMatch(queriedResult.DiagnosticsResult.Timeouts.RootCause, result.DiagnosticsResult.Timeouts.RootCause)
+	s.True(queriedResult.DiagnosticsCompleted)
 }
 
 func (s *diagnosticsWorkflowTestSuite) TestWorkflow_Error() {
@@ -160,6 +163,21 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow_Error() {
 	s.True(s.workflowEnv.IsWorkflowCompleted())
 	s.Error(s.workflowEnv.GetWorkflowError())
 	s.EqualError(s.workflowEnv.GetWorkflowError(), errExpected.Error())
+}
+
+func (s *diagnosticsWorkflowTestSuite) TestWorkflow_NoErrorIfEmitLogsActivityFails() {
+	params := &DiagnosticsWorkflowInput{
+		Domain:     "test",
+		WorkflowID: "123",
+		RunID:      "abc",
+	}
+	mockErr := errors.New("mockErr")
+	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(nil, nil)
+	s.workflowEnv.OnActivity(rootCauseIssuesActivity, mock.Anything, mock.Anything).Return(nil, nil)
+	s.workflowEnv.OnActivity(emitUsageLogsActivity, mock.Anything, mock.Anything).Return(mockErr)
+	s.workflowEnv.ExecuteWorkflow(diagnosticsStarterWorkflow, params)
+	s.True(s.workflowEnv.IsWorkflowCompleted())
+	s.NoError(s.workflowEnv.GetWorkflowError())
 }
 
 func (s *diagnosticsWorkflowTestSuite) queryDiagnostics() DiagnosticsStarterWorkflowResult {
