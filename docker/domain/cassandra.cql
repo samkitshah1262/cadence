@@ -6,7 +6,7 @@ INSERT INTO domains (
     123e4567-e89b-12d3-a456-426614174000, -- Replace with your UUID
     {
         id: 123e4567-e89b-12d3-a456-426614174000, -- Replace with your UUID
-        name: 'samkit_domain',
+        name: 'default',
         status: 0, -- Registered
         description: 'This is an example domain.',
         data: {'key1': 'value1', 'key2': 'value2'},
